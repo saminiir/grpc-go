@@ -94,15 +94,21 @@ func (s *routeGuideServer) ListFeaturesUnary(ctx context.Context, rect *pb.Recta
 // ListFeatures lists all features contained within the given bounding Rectangle.
 func (s *routeGuideServer) ListFeatures(rect *pb.Rectangle, stream pb.RouteGuide_ListFeaturesServer) error {
 	index := 0
-	for i := 0; i < 100; i++ {
+	multiplier := 100
+	features := make([]*pb.Feature, 0, 500)
+
+	for i := 0; i < multiplier; i++ {
 		for _, feature := range s.savedFeatures {
 			if inRange(feature.Location, rect) {
-				if err := stream.Send(feature); err != nil {
-					return err
-				}
-
+				features = append(features, feature)
 				index++
 			}
+		}
+	}
+
+	for _, feature := range features {
+		if err := stream.Send(feature); err != nil {
+			return err
 		}
 	}
 
