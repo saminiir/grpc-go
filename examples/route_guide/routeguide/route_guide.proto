@@ -38,6 +38,7 @@ service RouteGuide {
   // repeated field), as the rectangle may cover a large area and contain a
   // huge number of features.
   rpc ListFeatures(Rectangle) returns (stream Feature) {}
+  rpc ListFeaturesUnary(Rectangle) returns (FeatureResponse) {}
 
   // A client-to-server streaming RPC.
   //
@@ -80,6 +81,10 @@ message Feature {
 
   // The point where the feature is detected.
   Point location = 2;
+}
+
+message FeatureResponse {
+    repeated Feature features = 1;
 }
 
 // A RouteNote is a message sent while at a given point.

@@ -32,6 +32,7 @@ type RouteGuideClient interface {
 	// repeated field), as the rectangle may cover a large area and contain a
 	// huge number of features.
 	ListFeatures(ctx context.Context, in *Rectangle, opts ...grpc.CallOption) (RouteGuide_ListFeaturesClient, error)
+	ListFeaturesUnary(ctx context.Context, in *Rectangle, opts ...grpc.CallOption) (*FeatureResponse, error)
 	// A client-to-server streaming RPC.
 	//
 	// Accepts a stream of Points on a route being traversed, returning a
@@ -91,6 +92,15 @@ func (x *routeGuideListFeaturesClient) Recv() (*Feature, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+func (c *routeGuideClient) ListFeaturesUnary(ctx context.Context, in *Rectangle, opts ...grpc.CallOption) (*FeatureResponse, error) {
+	out := new(FeatureResponse)
+	err := c.cc.Invoke(ctx, "/routeguide.RouteGuide/ListFeaturesUnary", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *routeGuideClient) RecordRoute(ctx context.Context, opts ...grpc.CallOption) (RouteGuide_RecordRouteClient, error) {
@@ -176,6 +186,7 @@ type RouteGuideServer interface {
 	// repeated field), as the rectangle may cover a large area and contain a
 	// huge number of features.
 	ListFeatures(*Rectangle, RouteGuide_ListFeaturesServer) error
+	ListFeaturesUnary(context.Context, *Rectangle) (*FeatureResponse, error)
 	// A client-to-server streaming RPC.
 	//
 	// Accepts a stream of Points on a route being traversed, returning a
@@ -198,6 +209,9 @@ func (UnimplementedRouteGuideServer) GetFeature(context.Context, *Point) (*Featu
 }
 func (UnimplementedRouteGuideServer) ListFeatures(*Rectangle, RouteGuide_ListFeaturesServer) error {
 	return status.Errorf(codes.Unimplemented, "method ListFeatures not implemented")
+}
+func (UnimplementedRouteGuideServer) ListFeaturesUnary(context.Context, *Rectangle) (*FeatureResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListFeaturesUnary not implemented")
 }
 func (UnimplementedRouteGuideServer) RecordRoute(RouteGuide_RecordRouteServer) error {
 	return status.Errorf(codes.Unimplemented, "method RecordRoute not implemented")
@@ -255,6 +269,24 @@ type routeGuideListFeaturesServer struct {
 
 func (x *routeGuideListFeaturesServer) Send(m *Feature) error {
 	return x.ServerStream.SendMsg(m)
+}
+
+func _RouteGuide_ListFeaturesUnary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Rectangle)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RouteGuideServer).ListFeaturesUnary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/routeguide.RouteGuide/ListFeaturesUnary",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RouteGuideServer).ListFeaturesUnary(ctx, req.(*Rectangle))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _RouteGuide_RecordRoute_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -320,6 +352,10 @@ var RouteGuide_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetFeature",
 			Handler:    _RouteGuide_GetFeature_Handler,
 		},
+		{
+			MethodName: "ListFeaturesUnary",
+			Handler:    _RouteGuide_ListFeaturesUnary_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -339,5 +375,5 @@ var RouteGuide_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "examples/route_guide/routeguide/route_guide.proto",
+	Metadata: "routeguide/route_guide.proto",
 }

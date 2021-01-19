@@ -72,15 +72,40 @@ func (s *routeGuideServer) GetFeature(ctx context.Context, point *pb.Point) (*pb
 	return &pb.Feature{Location: point}, nil
 }
 
-// ListFeatures lists all features contained within the given bounding Rectangle.
-func (s *routeGuideServer) ListFeatures(rect *pb.Rectangle, stream pb.RouteGuide_ListFeaturesServer) error {
-	for _, feature := range s.savedFeatures {
-		if inRange(feature.Location, rect) {
-			if err := stream.Send(feature); err != nil {
-				return err
+func (s *routeGuideServer) ListFeaturesUnary(ctx context.Context, rect *pb.Rectangle) (*pb.FeatureResponse, error) {
+	index := 0
+	multiplier := 100
+	features := make([]*pb.Feature, 0, 500)
+
+	for i := 0; i < multiplier; i++ {
+		for _, feature := range s.savedFeatures {
+			if inRange(feature.Location, rect) {
+				features = append(features, feature)
+				index++
 			}
 		}
 	}
+
+	return &pb.FeatureResponse{
+		Features: features,
+	}, nil
+}
+
+// ListFeatures lists all features contained within the given bounding Rectangle.
+func (s *routeGuideServer) ListFeatures(rect *pb.Rectangle, stream pb.RouteGuide_ListFeaturesServer) error {
+	index := 0
+	for i := 0; i < 100; i++ {
+		for _, feature := range s.savedFeatures {
+			if inRange(feature.Location, rect) {
+				if err := stream.Send(feature); err != nil {
+					return err
+				}
+
+				index++
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -235,10 +260,14 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to generate credentials %v", err)
 		}
-		opts = []grpc.ServerOption{grpc.Creds(creds)}
+		opts = []grpc.ServerOption{grpc.Creds(creds),
+			grpc.WriteBufferSize(0)}
 	}
+
+	opts = []grpc.ServerOption{grpc.WriteBufferSize(2 << 20), grpc.InitialConnWindowSize(2 << 20), grpc.InitialWindowSize(2 << 20)}
 	grpcServer := grpc.NewServer(opts...)
 	pb.RegisterRouteGuideServer(grpcServer, newServer())
+	fmt.Println("Starting serve")
 	grpcServer.Serve(lis)
 }
 

@@ -55,8 +55,39 @@ func printFeature(client pb.RouteGuideClient, point *pb.Point) {
 	log.Println(feature)
 }
 
+func PrintFeaturesUnary(client pb.RouteGuideClient, rect *pb.Rectangle) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	features, err := client.ListFeaturesUnary(ctx, rect)
+	if err != nil {
+		log.Fatalf("%v.ListFeaturesUnary(_) = _, %v: ", client, err)
+	}
+
+	_ = features
+}
+
+func PrintFeatures(client pb.RouteGuideClient, rect *pb.Rectangle) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	stream, err := client.ListFeatures(ctx, rect)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+	var feature *pb.Feature
+	for {
+		feature, err = stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+		}
+	}
+	_ = feature
+}
+
 // printFeatures lists all the features within the given bounding Rectangle.
-func printFeatures(client pb.RouteGuideClient, rect *pb.Rectangle) {
+func printFeaturesSlow(client pb.RouteGuideClient, rect *pb.Rectangle) {
 	log.Printf("Looking for features within %v", rect)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -64,16 +95,23 @@ func printFeatures(client pb.RouteGuideClient, rect *pb.Rectangle) {
 	if err != nil {
 		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
 	}
+	ticker := time.NewTicker(500 * time.Millisecond)
+	done := make(chan bool)
 	for {
-		feature, err := stream.Recv()
-		if err == io.EOF {
-			break
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			feature, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+			}
+			log.Printf("Feature: name: %q, point:(%v, %v)", feature.GetName(),
+				feature.GetLocation().GetLatitude(), feature.GetLocation().GetLongitude())
 		}
-		if err != nil {
-			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
-		}
-		log.Printf("Feature: name: %q, point:(%v, %v)", feature.GetName(),
-			feature.GetLocation().GetLatitude(), feature.GetLocation().GetLongitude())
 	}
 }
 
@@ -175,14 +213,8 @@ func main() {
 	defer conn.Close()
 	client := pb.NewRouteGuideClient(conn)
 
-	// Looking for a valid feature
-	printFeature(client, &pb.Point{Latitude: 409146138, Longitude: -746188906})
-
-	// Feature missing.
-	printFeature(client, &pb.Point{Latitude: 0, Longitude: 0})
-
 	// Looking for features between 40, -75 and 42, -73.
-	printFeatures(client, &pb.Rectangle{
+	PrintFeatures(client, &pb.Rectangle{
 		Lo: &pb.Point{Latitude: 400000000, Longitude: -750000000},
 		Hi: &pb.Point{Latitude: 420000000, Longitude: -730000000},
 	})
